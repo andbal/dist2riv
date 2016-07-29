@@ -25,4 +25,4 @@ Visualise the influence raster:
 plot(img)
 ```
 # Note
-The option `is_parallel = TRUE` give some boost in the _table_ computation (that account for ~ 87% of the whole computational time: tab + map). For the map creation only, the serial version is faster so it is suggested to turn off `is_parallel` when `read_table = TRUE`.
+The option `is_parallel = TRUE` give some boost in the _table_ computation (that account for ~ 87% of the whole computational time: tab + map). For the map creation only, the serial version is faster so it is suggested to turn off `is_parallel` when `read_tab = TRUE`.

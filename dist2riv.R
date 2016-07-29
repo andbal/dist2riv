@@ -1,16 +1,21 @@
-### PROCEDURE
-# require("raster")
-# require("rgdal")
-# source('dist2ind_BaA.R')
-# dem <- raster("path/dem.tif")
-# adige <- raster("path/river.tif")
-# img <- dist2ind(dem=dem, river=adige)
-# plot(img)
+# Description:  Compute river influence on nearby soil
+# Author(s):    Daniele La Cecilia
+#                   original author
+#               Johannes Brenner
+#                   merged original scripts, added some functionality
+#               Andrea Balotti - andrea.balotti@hotmail.it
+#                   parallel implementation and code optimisation with function
+#
+# Copyright (c) 2016 Andrea Balotti
+
+# NB. 'parallel' give some boost in the tab computation (that account for ~ 87%
+# of the whole computational time: tab + map).
+# For the map creation, the serial version is still faster.
 
 # TODO
 #1) MPI implementation is disabled, require more checks
 
-dist2ind <- function(dem=dem, river=adige,  p_d = 500, p_h = 1, read_tab = FALSE,
+dist2riv <- function(dem=dem, river=adige,  p_d = 500, p_h = 1, read_tab = FALSE,
                      coordsys = "+proj=utm +zone=32 +ellps=WGS84",
                      is_parallel = FALSE, is_mpi = FALSE)
 {
@@ -167,11 +172,11 @@ cores <- detectCores()-1
     projection(rast) <- coordsys
     
     # dummy values = 0
-    rast[] <- 0
+    rast[] <- NA
     df <- data.frame(which(nonadem), disttab[,6])
     rast[which(nonadem)] <- df[,2]
-    rast <- trim(x = rast, padding = 0, values = '0')
-    rast[rast==0] <- NA
+    rast <- trim(x = rast, padding = 0, values = NA)
+    # rast[rast==0] <- NA
     
     # name of raster map
     namefile <- paste("rast_indicator_", p_d, "_", p_h, ".tif", sep="")

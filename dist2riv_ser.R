@@ -40,17 +40,30 @@ if (is_mpi){
     # FUNC 1: raster processing
     proc_rst <- function(map,isdem=FALSE){
         # get raw value
+        # s <- proc.time()
         mapVal <- getValues(map)
-        writeLines("1: Got values from raster")
+        # e <- proc.time()-start
+        # print(e)
+        writeLines("Got values from raster")
+        # print(c("Required:",e))
         # eliminate NA values
+        # s <- proc.time()
         nonamap   <- !is.na(mapVal)
-        writeLines("2a: map nona created.")
+        writeLines("map nona created.")
         mapVal_nona <- map[nonamap]
-        writeLines("2b: raster nona created.")
-        writeLines("2: Eliminated NA from raster.")
+        # mapVal_nona <- getValues(map,)
+        writeLines("raster nona created.")
+        # e <- proc.time()-start
+        # print(e)
+        writeLines("Eliminated NA from raster.")
+        # print(c("Required:",e))
         # retrieve coordinates no NA cell numbers
+        # s <- proc.time()
         xy <- xyFromCell(object = map, cell = which(nonamap)) #object = map
-        writeLines("3: xy coordinates written.")
+        # e <- proc.time()-start
+        # print(e)
+        writeLines("xy coordinates written.")
+        # print(c("Required:",e))
         # bind coordinates and values
         maptab <- cbind(xy, mapVal_nona)
         # ONLY for DEM: create .RData
@@ -72,6 +85,7 @@ if (is_mpi){
     calc_delta_m <- function(x, demtab, rivtab) {
     ind_dist <- which.min(sqrt((demtab[x,1] - rivtab[,1])^2 + (demtab[x,2] - rivtab[,2])^2 ))
     deltaxy <- sqrt((demtab[x,1] - rivtab[ind_dist,1])^2 + (demtab[x,2]- rivtab[ind_dist,2])^2 )
+    # deltaxy <- numeric(length = length(demtab))
     deltaH <- demtab[x,3] - rivtab[ind_dist,3]
     return(c(deltaxy, deltaH))
     }
@@ -134,17 +148,19 @@ if (is_mpi){
         e0 <- proc.time()-start
         print(e0)
         rm(river)
-        writeLines("RIVER DONE\n")
+        writeLines("RIVER DONE & SAVED\n")
         #----------------------
     
-        # run parallel
-        cl <- makeCluster(cores)
-        clusterExport(cl,varlist=c("demtab","rivtab"),
-                      envir = environment())
-        clusterEvalQ(cl,expr = "calc_delta_m")
-        xy_h <- parLapply(cl, X = 1:nvals, fun = calc_delta_m,
-                          demtab = "demtab", rivtab = "rivtab")
-        stopCluster(cl)
+        # run parallel or not
+        # cl <- makeCluster(cores)
+        # clusterExport(cl,varlist=c("demtab","rivtab"),
+        #               envir = environment())
+        # clusterEvalQ(cl,expr = "calc_delta_m")
+        # xy_h <- parLapply(cl, X = 1:nvals, fun = calc_delta_m,
+        #                   demtab = demtab, rivtab = rivtab)
+        xy_h <- lapply(X = 1:nvals, FUN = calc_delta_m,
+                       demtab = demtab, rivtab = rivtab)
+        # stopCluster(cl)
         xy_h <- matrix(unlist(x = xy_h), ncol = 2, byrow = T)
         colnames(xy_h) <- c("delta_xy", "delta_h")
         disttab <- cbind(demtab, xy_h)
@@ -159,15 +175,15 @@ if (is_mpi){
     }
 
     # calculate RISK (of ground water influence)
+    # distance from river + apply normalisation
     writeLines("Calculate risk of ground water influence")
     
-    ### DON'T REMOVE - could be used in case of further improvements ###
-    ### Alternative Solution 2 -> h as value and no normalization
+    ### Alternative Solution 2 - h as value and no normalization
     writeLines("Use heigh difference from river")
     # disttab[disttab[,4] < p_d & disttab[,5] < p_h ,6] <- disttab[disttab[,4] < p_d & disttab[,5] < p_h ,5]
     disttab[disttab[,5] < p_h ,6] <- disttab[disttab[,5] < p_h ,5]
     
-    ### Alternative Solution -> h as value + normalization
+    ### Alternative Solution - h as value + normalization
     # writeLines("Use heigh difference from river")
     # risktab <- disttab[disttab[,4] < p_d & disttab[,5] < p_h ,5]
     # if (is_parallel) {
@@ -185,7 +201,7 @@ if (is_mpi){
     # remove(risktab_temp)
     ###
     
-    ### Original Solution -> sqrt(x^2+h^2) as value + normalization
+    ### DON'T REMOVE - could be used in case of further improvements
     # risktab <- disttab[disttab[,4] < p_d & disttab[,5] < p_h ,6]
     # tab_xyh <- cbind(disttab[disttab[,4] < p_d & disttab[,5] < p_h,4],
     #                  disttab[disttab[,4] < p_d & disttab[,5] < p_h,5])
@@ -212,7 +228,6 @@ if (is_mpi){
     # }
     # disttab[disttab[,4] < p_d & disttab[,5] < p_h ,6] <- risktab
     ###
-    ######################################################################
     
     # dummy raster
     load("dem.RData")
@@ -223,13 +238,13 @@ if (is_mpi){
     rast[] <- 0
     df <- data.frame(which(nonadem), disttab[,6])
     rast[which(nonadem)] <- df[,2]
-    
-    # trim outer cells and put zero values as NA
     rast <- trim(x = rast, padding = 0, values = 0)
     rast[rast==0] <- NA
     
-    # name + write raster map
+    # name of raster map
     namefile <- paste("rast_indicator_", p_h, "h.tif", sep="")
+    
+    # write raster map
     writeRaster(rast, namefile, format="GTiff", overwrite=TRUE)
     
     return(rast)
